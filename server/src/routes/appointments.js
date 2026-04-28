@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pool from '../db.js';
+import { withStore, readQueued, nextId } from '../store/index.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
@@ -10,40 +10,37 @@ function parseLocalDateTime(s) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Citas del usuario actual (paciente o doctor) */
+function userById(data, id) {
+  return data.users.find((u) => u.id === id);
+}
+
 router.get('/mine', requireAuth, async (req, res) => {
   const uid = req.user.id;
   const role = req.user.role;
-  let sql;
-  let params;
-  if (role === 'patient') {
-    sql = `SELECT a.*,
-             d.full_name AS doctorName, d.email AS doctorEmail,
-             p.full_name AS patientName
-           FROM appointments a
-           JOIN users d ON d.id = a.doctor_id
-           JOIN users p ON p.id = a.patient_id
-           WHERE a.patient_id = ?
-           ORDER BY a.starts_at DESC`;
-    params = [uid];
-  } else if (role === 'doctor') {
-    sql = `SELECT a.*,
-             p.full_name AS patientName, p.email AS patientEmail, p.phone AS patientPhone,
-             d.full_name AS doctorName
-           FROM appointments a
-           JOIN users p ON p.id = a.patient_id
-           JOIN users d ON d.id = a.doctor_id
-           WHERE a.doctor_id = ?
-           ORDER BY a.starts_at DESC`;
-    params = [uid];
-  } else {
+  if (role !== 'patient' && role !== 'doctor') {
     return res.status(403).json({ error: 'Solo paciente o doctor' });
   }
-  const [rows] = await pool.query(sql, params);
+  const rows = await readQueued((data) => {
+    const list = data.appointments
+      .filter((a) => (role === 'patient' ? a.patient_id === uid : a.doctor_id === uid))
+      .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at));
+    return list.map((a) => {
+      const d = userById(data, a.doctor_id);
+      const p = userById(data, a.patient_id);
+      return {
+        ...a,
+        starts_at: a.starts_at,
+        doctorName: d?.full_name,
+        doctorEmail: d?.email,
+        patientName: p?.full_name,
+        patientEmail: p?.email,
+        patientPhone: p?.phone,
+      };
+    });
+  });
   res.json(rows);
 });
 
-/** Paciente agenda cita */
 router.post('/', requireAuth, requireRole('patient'), async (req, res) => {
   const { doctorId, startsAt, reason, durationMinutes } = req.body;
   const doctorIdNum = Number(doctorId);
@@ -51,61 +48,67 @@ router.post('/', requireAuth, requireRole('patient'), async (req, res) => {
   const start = parseLocalDateTime(startsAt);
   if (!start) return res.status(400).json({ error: 'Fecha/hora inválida' });
 
-  const [[doc]] = await pool.query(
-    "SELECT id FROM users WHERE id = ? AND role = 'doctor' AND active = 1",
-    [doctorIdNum]
+  const doc = await readQueued((data) =>
+    data.users.find((u) => u.id === doctorIdNum && u.role === 'doctor' && u.active)
   );
   if (!doc) return res.status(404).json({ error: 'Psicólogo no encontrado' });
 
   const dur = Math.min(180, Math.max(15, Number(durationMinutes) || 45));
-
-  const [r] = await pool.query(
-    `INSERT INTO appointments (patient_id, doctor_id, starts_at, duration_minutes, reason, status)
-     VALUES (?, ?, ?, ?, ?, 'pending')`,
-    [req.user.id, doctorIdNum, start, dur, reason?.trim() || null]
-  );
-  const [rows] = await pool.query('SELECT * FROM appointments WHERE id = ?', [r.insertId]);
-  res.status(201).json(rows[0]);
+  const row = await withStore((data) => {
+    const id = nextId(data);
+    const a = {
+      id,
+      patient_id: req.user.id,
+      doctor_id: doctorIdNum,
+      starts_at: start.toISOString(),
+      duration_minutes: dur,
+      reason: reason?.trim() || null,
+      notes_doctor: null,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    };
+    data.appointments.push(a);
+    return a;
+  });
+  res.status(201).json(row);
 });
 
-/** Doctor actualiza estado o notas */
 router.patch('/:id', requireAuth, requireRole('doctor'), async (req, res) => {
   const id = Number(req.params.id);
   const { status, notesDoctor } = req.body;
-  const [[a]] = await pool.query('SELECT * FROM appointments WHERE id = ? AND doctor_id = ?', [
-    id,
-    req.user.id,
-  ]);
-  if (!a) return res.status(404).json({ error: 'Cita no encontrada' });
-
   const allowed = ['pending', 'confirmed', 'completed', 'cancelled'];
-  const updates = [];
-  const vals = [];
-  if (status && allowed.includes(status)) {
-    updates.push('status = ?');
-    vals.push(status);
-  }
-  if (notesDoctor !== undefined) {
-    updates.push('notes_doctor = ?');
-    vals.push(notesDoctor);
-  }
-  if (!updates.length) return res.status(400).json({ error: 'Nada que actualizar' });
-  vals.push(id);
-  await pool.query(`UPDATE appointments SET ${updates.join(', ')} WHERE id = ?`, vals);
-  const [rows] = await pool.query('SELECT * FROM appointments WHERE id = ?', [id]);
-  res.json(rows[0]);
+  const row = await withStore((data) => {
+    const a = data.appointments.find((x) => x.id === id && x.doctor_id === req.user.id);
+    if (!a) return { err: 'nf' };
+    let changed = false;
+    if (status && allowed.includes(status)) {
+      a.status = status;
+      changed = true;
+    }
+    if (notesDoctor !== undefined) {
+      a.notes_doctor = notesDoctor;
+      changed = true;
+    }
+    if (!changed) return { err: 'noop' };
+    return a;
+  });
+  if (row?.err === 'nf') return res.status(404).json({ error: 'Cita no encontrada' });
+  if (row?.err === 'noop') return res.status(400).json({ error: 'Nada que actualizar' });
+  res.json(row);
 });
 
-/** Paciente cancela su cita */
 router.post('/:id/cancel', requireAuth, requireRole('patient'), async (req, res) => {
   const id = Number(req.params.id);
-  const [r] = await pool.query(
-    "UPDATE appointments SET status = 'cancelled' WHERE id = ? AND patient_id = ? AND status IN ('pending','confirmed')",
-    [id, req.user.id]
-  );
-  if (r.affectedRows === 0) return res.status(404).json({ error: 'No se pudo cancelar' });
-  const [rows] = await pool.query('SELECT * FROM appointments WHERE id = ?', [id]);
-  res.json(rows[0]);
+  const row = await withStore((data) => {
+    const a = data.appointments.find(
+      (x) => x.id === id && x.patient_id === req.user.id && ['pending', 'confirmed'].includes(x.status)
+    );
+    if (!a) return null;
+    a.status = 'cancelled';
+    return a;
+  });
+  if (!row) return res.status(404).json({ error: 'No se pudo cancelar' });
+  res.json(row);
 });
 
 export default router;

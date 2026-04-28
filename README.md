@@ -2,25 +2,21 @@
 
 Sistema web de **historias clínicas** y **teleconsulta** con roles **paciente**, **psicólogo (doctor)** y **administrador**.
 
+Los datos se guardan en un **archivo JSON** en disco (no requiere MySQL).
+
 ## Funcionalidades
 
 - **Login** para los tres roles; **registro público** solo para pacientes.
-- **Historial clínico**: el paciente lee sus notas; el psicólogo ve pacientes con cita o notas y puede **documentar** nuevas entradas.
-- **Citas**: el paciente **programa** con el psicólogo que elija; el psicólogo **confirma, completa o cancela** y puede añadir notas por cita.
-- **Chat privado** entre paciente y psicólogo (tras existir al menos **una cita** entre ambos), en tiempo real con **Socket.io**.
+- **Historial clínico**, **citas**, **chat** en tiempo real (Socket.io).
+- **Panel admin**: usuarios, alta de psicólogos, estadísticas.
 
 ## Requisitos
 
 - Node.js 18+
-- MySQL 8 (en local, por ejemplo usuario `root` y base `shc_teleconsulta`)
 
 ## Puesta en marcha
 
-### 1. Base de datos
-
-Cree el archivo `server/.env` a partir de `server/.env.example` y ajuste usuario/contraseña de MySQL.
-
-Aplique el esquema y datos demo:
+### 1. Datos (JSON)
 
 ```bash
 cd server
@@ -28,7 +24,7 @@ npm install
 npm run seed
 ```
 
-El *seed* crea la base si no existe e inserta usuarios de prueba (contraseña **`demo123`**):
+Crea `server/data/shc-data.json` con usuarios demo (contraseña de la web **`demo123`**):
 
 | Rol       | Email               |
 |----------|---------------------|
@@ -37,6 +33,10 @@ El *seed* crea la base si no existe e inserta usuarios de prueba (contraseña **
 | Psicólogo| `doctor@shc.local`  |
 | Paciente | `paciente@shc.local`|
 
+Copie `server/.env.example` a `server/.env`. Opcional: variable **`JSON_DB_PATH`** (por defecto `./data/shc-data.json` relativo a la carpeta `server/`).
+
+Para **empezar de cero**, borre `server/data/shc-data.json` y ejecute `npm run seed` otra vez.
+
 ### 2. API (puerto 4000)
 
 ```bash
@@ -44,9 +44,7 @@ cd server
 npm run dev
 ```
 
-### 3. Interfaz web (puerto 5173)
-
-En otra terminal:
+### 3. Interfaz (puerto 5173)
 
 ```bash
 cd client
@@ -54,16 +52,15 @@ npm install
 npm run dev
 ```
 
-Abra [http://localhost:5173](http://localhost:5173). Las peticiones `/api` y WebSocket se proxifican al servidor.
+Abra [http://localhost:5173](http://localhost:5173).
 
 ## Estructura
 
-- `sql/schema.sql` — tablas `users`, `doctor_profiles`, `appointments`, `clinical_records`, `messages`.
-- `server/` — Express, JWT, MySQL, Socket.io.
-- `client/` — React + Vite + TypeScript.
+- `server/data/` — archivo `shc-data.json` generado por el *seed* (ignorado en git salvo `.gitkeep`).
+- `server/src/store/jsonStore.js` — lectura/escritura en cola del JSON.
+- `sql/` — scripts de referencia si en el futuro migra a MySQL.
+- `client/` — React + Vite.
 
 ## Producción
 
-Compile el cliente (`cd client && npm run build`) y sirva la carpeta `client/dist` detrás de un proxy que reenvíe `/api` y `/socket.io` al mismo proceso Node que ejecuta `npm start` en `server/`.
-
-Configure `JWT_SECRET` seguro y credenciales MySQL reales en `server/.env`.
+`JWT_SECRET` seguro; no suba `server/data/shc-data.json` con datos reales a repositorios públicos sin cifrado previo.

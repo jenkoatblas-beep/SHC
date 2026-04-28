@@ -18,7 +18,7 @@ type AuthState = {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { email: string; password: string; fullName: string; phone?: string }) => Promise<void>;
+  register: (data: { email: string; password: string; fullName: string; phone?: string; edad?: number; genero?: string }) => Promise<void>;
   logout: () => void;
   refreshMe: () => Promise<void>;
 };
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   };
 
-  const register = async (body: { email: string; password: string; fullName: string; phone?: string }) => {
+  const register = async (body: { email: string; password: string; fullName: string; phone?: string; edad?: number; genero?: string }) => {
     const { data } = await api.post<{ token: string; user: User }>('/auth/register', body);
     localStorage.setItem('shc_token', data.token);
     setToken(data.token);

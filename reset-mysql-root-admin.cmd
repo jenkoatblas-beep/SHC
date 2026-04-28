@@ -5,7 +5,7 @@ setlocal EnableExtensions
 set "MYSQLD=C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe"
 set "MYSQL=C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
 set "MYINI=C:\ProgramData\MySQL\MySQL Server 8.0\my.ini"
-set "SQLFILE=C:\Users\usuario\mysql-reset-skip.sql"
+set "SQLFILE=%~dp0sql\mysql-set-root-password.sql"
 
 echo.
 echo === MySQL: usuario root, contraseña root ===

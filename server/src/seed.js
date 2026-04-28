@@ -1,93 +1,146 @@
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
-import mysql from 'mysql2/promise';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { withStore, readQueued } from './store/index.js';
 
 dotenv.config();
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 async function main() {
-  const schemaPath = path.join(__dirname, '../../sql/schema.sql');
-  const raw = fs.readFileSync(schemaPath, 'utf8');
-
-  const conn = await mysql.createConnection({
-    host: process.env.MYSQL_HOST || '127.0.0.1',
-    port: Number(process.env.MYSQL_PORT || 3306),
-    user: process.env.MYSQL_USER || 'root',
-    password: process.env.MYSQL_PASSWORD || '',
-    multipleStatements: true,
-  });
-
-  console.log('Aplicando schema...');
-  await conn.query(raw);
-
-  await conn.query('USE shc_teleconsulta');
-  const hash = await bcrypt.hash('demo123', 10);
-
-  const [existing] = await conn.query('SELECT id FROM users WHERE email = ?', ['admin@shc.local']);
-  if (existing.length) {
-    console.log('Datos demo ya existen (admin@shc.local). Saltando inserción de usuarios.');
-    await conn.end();
+  const exists = await readQueued((d) => d.users.some((u) => u.email === 'admin@shc.local'));
+  if (exists) {
+    console.log('Datos demo ya existen (admin@shc.local). No se modifica el JSON.');
     return;
   }
 
-  console.log('Insertando usuarios demo...');
-  await conn.query(
-    `INSERT INTO users (email, password_hash, role, full_name, phone) VALUES
-     ('admin@shc.local', ?, 'admin', 'Administrador SHC', NULL),
-     ('doctora@shc.local', ?, 'doctor', 'Dra. Ana Pérez', '600111222'),
-     ('doctor@shc.local', ?, 'doctor', 'Dr. Luis Gómez', '600333444'),
-     ('paciente@shc.local', ?, 'patient', 'María Paciente Demo', '600555666')`,
-    [hash, hash, hash, hash]
-  );
+  const hash = await bcrypt.hash('demo123', 10);
 
-  const [[admin]] = await conn.query('SELECT id FROM users WHERE email = ?', ['admin@shc.local']);
-  const [[d1]] = await conn.query('SELECT id FROM users WHERE email = ?', ['doctora@shc.local']);
-  const [[d2]] = await conn.query('SELECT id FROM users WHERE email = ?', ['doctor@shc.local']);
-  const [[p1]] = await conn.query('SELECT id FROM users WHERE email = ?', ['paciente@shc.local']);
+  await withStore((data) => {
+    for (const k of ['users', 'doctor_profiles', 'appointments', 'clinical_records', 'messages']) {
+      data[k].length = 0;
+    }
 
-  await conn.query(
-    `INSERT INTO doctor_profiles (user_id, specialty, professional_license, bio) VALUES
-     (?, 'Psicología clínica', 'COL-10001', 'Terapia cognitivo-conductual.'),
-     (?, 'Psicología general', 'COL-10002', 'Acompañamiento en ansiedad y estrés.')`,
-    [d1.id, d2.id]
-  );
+    const u1 = {
+      id: 1,
+      email: 'admin@shc.local',
+      password_hash: hash,
+      role: 'admin',
+      full_name: 'Administrador SHC',
+      phone: null,
+      active: 1,
+      created_at: new Date().toISOString(),
+    };
+    const u2 = {
+      id: 2,
+      email: 'doctora@shc.local',
+      password_hash: hash,
+      role: 'doctor',
+      full_name: 'Dra. Ana Pérez',
+      phone: '600111222',
+      active: 1,
+      created_at: new Date().toISOString(),
+    };
+    const u3 = {
+      id: 3,
+      email: 'doctor@shc.local',
+      password_hash: hash,
+      role: 'doctor',
+      full_name: 'Dr. Luis Gómez',
+      phone: '600333444',
+      active: 1,
+      created_at: new Date().toISOString(),
+    };
+    const u4 = {
+      id: 4,
+      email: 'paciente@shc.local',
+      password_hash: hash,
+      role: 'patient',
+      full_name: 'María Paciente Demo',
+      phone: '600555666',
+      active: 1,
+      created_at: new Date().toISOString(),
+    };
+    data.users.push(u1, u2, u3, u4);
 
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(10, 0, 0, 0);
+    data.doctor_profiles.push(
+      {
+        user_id: 2,
+        specialty: 'Psicología clínica',
+        professional_license: 'COL-10001',
+        bio: 'Terapia cognitivo-conductual.',
+      },
+      {
+        user_id: 3,
+        specialty: 'Psicología general',
+        professional_license: 'COL-10002',
+        bio: 'Acompañamiento en ansiedad y estrés.',
+      }
+    );
 
-  await conn.query(
-    `INSERT INTO appointments (patient_id, doctor_id, starts_at, duration_minutes, status, reason) VALUES
-     (?, ?, ?, 45, 'confirmed', 'Primera consulta telemática'),
-     (?, ?, ?, 45, 'pending', 'Seguimiento')`,
-    [p1.id, d1.id, tomorrow, p1.id, d2.id, new Date(tomorrow.getTime() + 86400000)]
-  );
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(10, 0, 0, 0);
+    const t2 = new Date(tomorrow.getTime() + 86400000);
 
-  await conn.query(
-    `INSERT INTO clinical_records (patient_id, doctor_id, title, content) VALUES
-     (?, ?, 'Valoración inicial', 'Paciente refiere ansiedad leve. Se acuerda plan de teleseguimiento.')`,
-    [p1.id, d1.id]
-  );
+    data.appointments.push(
+      {
+        id: 1,
+        patient_id: 4,
+        doctor_id: 2,
+        starts_at: tomorrow.toISOString(),
+        duration_minutes: 45,
+        status: 'confirmed',
+        reason: 'Primera consulta telemática',
+        notes_doctor: null,
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 2,
+        patient_id: 4,
+        doctor_id: 3,
+        starts_at: t2.toISOString(),
+        duration_minutes: 45,
+        status: 'pending',
+        reason: 'Seguimiento',
+        notes_doctor: null,
+        created_at: new Date().toISOString(),
+      }
+    );
 
-  await conn.query(
-    `INSERT INTO messages (sender_id, receiver_id, body) VALUES
-     (?, ?, 'Hola doctora, confirmo la videollamada para mañana.'),
-     (?, ?, 'Perfecto, le envío el enlace 10 minutos antes.')`,
-    [p1.id, d1.id, d1.id, p1.id]
-  );
+    data.clinical_records.push({
+      id: 1,
+      patient_id: 4,
+      doctor_id: 2,
+      appointment_id: null,
+      title: 'Valoración inicial',
+      content: 'Paciente refiere ansiedad leve. Se acuerda plan de teleseguimiento.',
+      created_at: new Date().toISOString(),
+    });
 
-  console.log('\n--- Usuarios demo (contraseña: demo123) ---');
+    data.messages.push(
+      {
+        id: 1,
+        sender_id: 4,
+        receiver_id: 2,
+        body: 'Hola doctora, confirmo la videollamada para mañana.',
+        read_at: null,
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 2,
+        sender_id: 2,
+        receiver_id: 4,
+        body: 'Perfecto, le envío el enlace 10 minutos antes.',
+        read_at: null,
+        created_at: new Date().toISOString(),
+      }
+    );
+  });
+
+  console.log('\n--- Datos JSON creados (contraseña web: demo123) ---');
   console.log('Admin:     admin@shc.local');
   console.log('Doctora:   doctora@shc.local');
   console.log('Doctor:    doctor@shc.local');
   console.log('Paciente:  paciente@shc.local');
-  console.log('-------------------------------------------\n');
-
-  await conn.end();
+  console.log('---------------------------------------------------\n');
 }
 
 main().catch((e) => {

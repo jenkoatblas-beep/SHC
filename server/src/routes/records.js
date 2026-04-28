@@ -1,94 +1,123 @@
 import { Router } from 'express';
-import pool from '../db.js';
+import { withStore, readQueued, nextId } from '../store/index.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
-/** Historial clínico visible para paciente (suyo) o doctor (de sus pacientes con los que ha tenido cita o nota) */
 router.get('/mine', requireAuth, async (req, res) => {
   const uid = req.user.id;
   const role = req.user.role;
 
   if (role === 'patient') {
-    const [rows] = await pool.query(
-      `SELECT r.id, r.title, r.content, r.created_at AS createdAt,
-              r.doctor_id AS doctorId, u.full_name AS doctorName,
-              r.appointment_id AS appointmentId
-       FROM clinical_records r
-       JOIN users u ON u.id = r.doctor_id
-       WHERE r.patient_id = ?
-       ORDER BY r.created_at DESC`,
-      [uid]
-    );
+    const rows = await readQueued((data) => {
+      return data.clinical_records
+        .filter((r) => r.patient_id === uid)
+        .map((r) => {
+          const doc = data.users.find((u) => u.id === r.doctor_id);
+          return {
+            id: r.id,
+            title: r.title,
+            content: r.content,
+            createdAt: r.created_at,
+            doctorId: r.doctor_id,
+            doctorName: doc?.full_name || '',
+            appointmentId: r.appointment_id,
+          };
+        })
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    });
     return res.json(rows);
   }
 
   if (role === 'doctor') {
-    const [rows] = await pool.query(
-      `SELECT DISTINCT u.id AS patientId, u.full_name AS patientName, u.email, u.phone
-       FROM users u
-       WHERE u.role = 'patient' AND u.active = 1
-         AND (
-           EXISTS (SELECT 1 FROM appointments a WHERE a.patient_id = u.id AND a.doctor_id = ?)
-           OR EXISTS (SELECT 1 FROM clinical_records cr WHERE cr.patient_id = u.id AND cr.doctor_id = ?)
-         )
-       ORDER BY u.full_name`,
-      [uid, uid]
-    );
-    return res.json({ patients: rows });
+    const patients = await readQueued((data) => {
+      const patientIds = new Set();
+      for (const a of data.appointments) {
+        if (a.doctor_id === uid) patientIds.add(a.patient_id);
+      }
+      for (const r of data.clinical_records) {
+        if (r.doctor_id === uid) patientIds.add(r.patient_id);
+      }
+      return [...patientIds]
+        .map((pid) => {
+          const u = data.users.find((x) => x.id === pid && x.role === 'patient' && x.active);
+          if (!u) return null;
+          return { patientId: u.id, patientName: u.full_name, email: u.email, phone: u.phone };
+        })
+        .filter(Boolean)
+        .sort((a, b) => String(a.patientName).localeCompare(b.patientName));
+    });
+    return res.json({ patients });
   }
 
   return res.status(403).json({ error: 'Solo paciente o doctor' });
 });
 
-/** Notas clínicas de un paciente (solo doctor asignado por relación) */
 router.get('/patient/:patientId', requireAuth, requireRole('doctor'), async (req, res) => {
   const patientId = Number(req.params.patientId);
-  const [relRows] = await pool.query(
-    `(SELECT 1 AS x FROM appointments WHERE patient_id = ? AND doctor_id = ? LIMIT 1)
-     UNION ALL
-     (SELECT 1 AS x FROM clinical_records WHERE patient_id = ? AND doctor_id = ? LIMIT 1)
-     LIMIT 1`,
-    [patientId, req.user.id, patientId, req.user.id]
-  );
-  if (!relRows.length) {
-    return res.status(403).json({ error: 'No tiene relación clínica con este paciente' });
+  const rows = await readQueued((data) => {
+    const hasRel =
+      data.appointments.some((a) => a.patient_id === patientId && a.doctor_id === req.user.id) ||
+      data.clinical_records.some((r) => r.patient_id === patientId && r.doctor_id === req.user.id);
+    const p = data.users.find(u => u.id === patientId && u.role === 'patient');
+    if (!p) return { error: true };
+    const prof = data.patient_profiles?.find(pp => pp.user_id === patientId);
+
+    const records = data.clinical_records
+      .filter((r) => r.patient_id === patientId && r.doctor_id === req.user.id)
+      .map((r) => ({ ...r, createdAt: r.created_at }))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return {
+      patient: {
+        id: p.id,
+        fullName: p.full_name,
+        email: p.email,
+        phone: p.phone,
+        edad: prof?.edad || null,
+        genero: prof?.genero || null,
+      },
+      records
+    };
+  });
+  if (rows?.error) {
+    return res.status(403).json({ error: 'No tiene relación clínica con este paciente o el paciente no existe' });
   }
-  const [rows] = await pool.query(
-    `SELECT r.*, r.created_at AS createdAt
-     FROM clinical_records r WHERE r.patient_id = ? AND r.doctor_id = ?
-     ORDER BY r.created_at DESC`,
-    [patientId, req.user.id]
-  );
   res.json(rows);
 });
 
-/** Crear nota clínica (doctor) */
 router.post('/', requireAuth, requireRole('doctor'), async (req, res) => {
   const { patientId, title, content, appointmentId } = req.body;
   const pid = Number(patientId);
   if (!pid || !content?.trim()) {
     return res.status(400).json({ error: 'patientId y contenido son obligatorios' });
   }
-  const [[p]] = await pool.query("SELECT id FROM users WHERE id = ? AND role = 'patient'", [pid]);
+  const p = await readQueued((data) => data.users.find((u) => u.id === pid && u.role === 'patient'));
   if (!p) return res.status(404).json({ error: 'Paciente no encontrado' });
 
   let aptId = appointmentId ? Number(appointmentId) : null;
   if (aptId) {
-    const [[a]] = await pool.query(
-      'SELECT id FROM appointments WHERE id = ? AND patient_id = ? AND doctor_id = ?',
-      [aptId, pid, req.user.id]
+    const ok = await readQueued((data) =>
+      data.appointments.some((a) => a.id === aptId && a.patient_id === pid && a.doctor_id === req.user.id)
     );
-    if (!a) aptId = null;
+    if (!ok) aptId = null;
   }
 
-  const [r] = await pool.query(
-    `INSERT INTO clinical_records (patient_id, doctor_id, appointment_id, title, content)
-     VALUES (?, ?, ?, ?, ?)`,
-    [pid, req.user.id, aptId, (title || 'Consulta').trim().slice(0, 300), content.trim()]
-  );
-  const [rows] = await pool.query('SELECT * FROM clinical_records WHERE id = ?', [r.insertId]);
-  res.status(201).json(rows[0]);
+  const row = await withStore((data) => {
+    const id = nextId(data);
+    const r = {
+      id,
+      patient_id: pid,
+      doctor_id: req.user.id,
+      appointment_id: aptId,
+      title: (title || 'Consulta').trim().slice(0, 300),
+      content: content.trim(),
+      created_at: new Date().toISOString(),
+    };
+    data.clinical_records.push(r);
+    return r;
+  });
+  res.status(201).json(row);
 });
 
 export default router;

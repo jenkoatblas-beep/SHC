@@ -9,13 +9,22 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [edad, setEdad] = useState('');
+  const [genero, setGenero] = useState('');
   const [err, setErr] = useState('');
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr('');
     try {
-      await register({ email, password, fullName, phone: phone || undefined });
+      await register({ 
+        email, 
+        password, 
+        fullName, 
+        phone: phone || undefined,
+        edad: edad ? Number(edad) : undefined,
+        genero: genero || undefined
+      });
       nav('/');
     } catch (ex: unknown) {
       const msg =
@@ -46,6 +55,21 @@ export default function Register() {
           <div className="field">
             <label>Teléfono (opcional)</label>
             <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </div>
+          <div className="field" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label>Edad</label>
+              <input className="input" type="number" min="0" value={edad} onChange={(e) => setEdad(e.target.value)} required />
+            </div>
+            <div>
+              <label>Género</label>
+              <select className="input" value={genero} onChange={(e) => setGenero(e.target.value)} required>
+                <option value="">Seleccione...</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Femenino">Femenino</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
           </div>
           <div className="field">
             <label>Contraseña</label>
