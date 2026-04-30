@@ -1,0 +1,89 @@
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><title>Manual de Usuario SHC</title></head>
+<body style="font-family: Arial, sans-serif;">
+  <h1>Manual de Usuario: Sistema de Historias Clínicas (SHC)</h1>
+  <p>Bienvenido al Manual de Usuario de la plataforma <strong>SHC</strong>. Esta guía está diseñada para ayudarte a navegar e interactuar con todas las funcionalidades de nuestro sistema médico.</p>
+
+  <h2>1. Registro e Inicio de Sesión</h2>
+  <h3>¿Cómo crear una cuenta de paciente?</h3>
+  <p>Si eres un nuevo usuario, deberás crear una cuenta para acceder a la plataforma:</p>
+  <ol>
+    <li>Accede a la pantalla inicial del sistema.</li>
+    <li>Haz clic en el botón <strong>Registrarse</strong>.</li>
+    <li>Rellena el formulario con tus datos:
+      <ul>
+        <li><em>Nombre completo</em></li>
+        <li><em>Correo electrónico</em></li>
+        <li><em>Teléfono</em></li>
+        <li><em>Edad</em> y <em>Género</em></li>
+        <li><em>Contraseña</em> (Mínimo 6 caracteres).</li>
+      </ul>
+    </li>
+    <li>Haz clic en <strong>"Crear cuenta"</strong>. Una vez creada, serás redirigido automáticamente al <em>Dashboard</em>.</li>
+  </ol>
+
+  <p><strong>Aviso para Médicos:</strong> Los perfiles de doctores no pueden ser creados públicamente. Deben ser dados de alta por el <strong>Administrador del Sistema</strong>.</p>
+
+  <h3>Iniciar Sesión</h3>
+  <ol>
+    <li>Haz clic en <strong>Iniciar sesión</strong> en la pantalla inicial.</li>
+    <li>Ingresa tu correo electrónico y contraseña.</li>
+    <li>Haz clic en <strong>"Iniciar Sesión"</strong>.</li>
+  </ol>
+
+  <h2>2. Pantalla Principal (Dashboard)</h2>
+  <p>Una vez hayas iniciado sesión, verás la pantalla principal. Esta se divide en tres secciones clave:</p>
+  <ul>
+    <li><strong>Panel de Estadísticas Rápidas:</strong> Ubicado en el centro, permite acceso rápido a la <strong>Agenda</strong>, <strong>Mi Historial</strong> y <strong>Mensajes</strong>.</li>
+    <li><strong>Actividad Reciente:</strong> Te notificará sobre tus últimas acciones en el sistema (ej. <em>Sesión iniciada correctamente</em>, <em>Cita programada</em>).</li>
+    <li><strong>Barra Lateral Derecha (Próximas Citas y Teleconsulta):</strong> Muestra tus citas agendadas para el día de hoy y te proporciona un botón de acceso directo para las teleconsultas.</li>
+  </ul>
+
+  <h2>3. Módulos Principales</h2>
+  <h3>📋 Historial Clínico</h3>
+  <p>Desde el menú lateral puedes acceder a tu historial.</p>
+  <ul>
+    <li><strong>Para pacientes:</strong> Verás un listado de todas las notas médicas, exámenes, y diagnósticos que tu doctor haya registrado y autorizado para que veas.</li>
+    <li><strong>Para doctores:</strong> Verás una lista de todos tus pacientes. Podrás hacer clic en cada uno para añadir nuevos diagnósticos, subir documentos y registrar la evolución clínica.</li>
+  </ul>
+
+  <h3>📅 Agenda y Citas</h3>
+  <p>Este módulo te permite organizar tu tiempo médico.</p>
+  <ul>
+    <li><strong>Para pacientes:</strong> Puedes solicitar una cita seleccionando a un profesional disponible, escogiendo fecha y hora, y anotando el motivo de consulta.</li>
+    <li><strong>Para doctores:</strong> Podrán ver un calendario con todas las citas confirmadas o pendientes de confirmación, así como cambiar el estado de las mismas (Ej. de <em>Pendiente</em> a <em>Aceptada</em>).</li>
+  </ul>
+
+  <h3>💬 Chat Privado</h3>
+  <p>Comunícate directamente a través de mensajes seguros.</p>
+  <ol>
+    <li>Selecciona a un paciente/doctor de tu lista de contactos.</li>
+    <li>Escribe tu mensaje en la parte inferior y presiona <strong>Enviar</strong>.</li>
+  </ol>
+
+  <h2>4. Teleconsultas (Microsoft Teams)</h2>
+  <p>Hemos integrado <strong>Microsoft Teams</strong> para garantizar la más alta calidad y seguridad en tus videollamadas.</p>
+  <h3>¿Cómo iniciar una Teleconsulta?</h3>
+  <ol>
+    <li>Dirígete a la sección <strong>"Iniciar Teleconsulta"</strong> ubicada en la barra lateral derecha del Dashboard.</li>
+    <li>Haz clic en el botón verde <strong>"Nueva Teleconsulta"</strong>.</li>
+    <li>Esto abrirá una nueva pestaña redirigiéndote automáticamente a <strong>Microsoft Teams</strong>.</li>
+    <li>En Teams, podrás:
+      <ul>
+        <li>Iniciar sesión con tu cuenta de Microsoft existente.</li>
+        <li>O seleccionar <strong>"Unirse como invitado"</strong> si no tienes cuenta y tu doctor te proporcionó un link específico.</li>
+      </ul>
+    </li>
+    <li>Una vez dentro, crearás o entrarás a la sala de reuniones virtual y tu teleconsulta habrá comenzado.</li>
+  </ol>
+
+  <h2>5. Panel de Administración</h2>
+  <p><strong>Nota:</strong> Este módulo es <strong>solo visible para Administradores</strong>.</p>
+  <p>El administrador del sistema tiene una opción adicional llamada <strong>"Administración"</strong> en el menú de la izquierda. Desde allí podrá:</p>
+  <ul>
+    <li>Ver las estadísticas globales del sistema.</li>
+    <li>Dar de alta a nuevos <strong>Doctores</strong>.</li>
+    <li>Suspender cuentas o reiniciar contraseñas en caso de pérdida de acceso.</li>
+  </ul>
+</body>
+</html>

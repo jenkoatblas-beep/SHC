@@ -1,0 +1,93 @@
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><title>Manual Tecnico SHC</title></head>
+<body style="font-family: Arial, sans-serif;">
+  <h1>Manual Técnico: Sistema de Historias Clínicas (SHC)</h1>
+
+  <h2>1. Arquitectura General del Sistema</h2>
+  <p>El Sistema de Historias Clínicas (SHC) está construido utilizando una arquitectura Cliente-Servidor separada:</p>
+  <ul>
+    <li><strong>Frontend (Cliente):</strong> Aplicación de una sola página (SPA) construida con <strong>React</strong>, <strong>TypeScript</strong> y <strong>Vite</strong>.</li>
+    <li><strong>Backend (Servidor):</strong> API RESTful desarrollada con <strong>Node.js</strong> y <strong>Express</strong>.</li>
+    <li><strong>Base de Datos:</strong> Migración soportada de <strong>MySQL</strong> a <strong>Supabase (PostgreSQL)</strong> para gestión de persistencia relacional.</li>
+  </ul>
+  <p>El sistema se comunica principalmente mediante solicitudes HTTP/JSON y se apoya en JSON Web Tokens (JWT) para la autenticación y autorización.</p>
+
+  <h2>2. Pila Tecnológica (Tech Stack)</h2>
+  <h3>Frontend (/client)</h3>
+  <ul>
+    <li><strong>React 18:</strong> Librería principal de UI.</li>
+    <li><strong>TypeScript:</strong> Lenguaje de programación.</li>
+    <li><strong>React Router v6:</strong> Enrutamiento de páginas.</li>
+    <li><strong>Vite:</strong> Empaquetador y entorno de desarrollo ultra rápido.</li>
+    <li><strong>CSS3 Vanilla:</strong> Sistema de diseño personalizado, modular y responsivo usando variables CSS globales para la tipografía, colores y layout moderno.</li>
+  </ul>
+
+  <h3>Backend (/server)</h3>
+  <ul>
+    <li><strong>Node.js:</strong> Entorno de ejecución.</li>
+    <li><strong>Express.js:</strong> Framework minimalista para rutas web.</li>
+    <li><strong>Bcrypt:</strong> Para el cifrado unidireccional de contraseñas.</li>
+    <li><strong>JSON Web Token (JWT):</strong> Para protección de rutas seguras.</li>
+    <li><strong>CORS:</strong> Manejo de seguridad en peticiones cruzadas.</li>
+    <li><strong>PostgreSQL / Supabase:</strong> Base de datos relacional para guardar Usuarios, Citas, Historiales Médicos y Mensajes de chat.</li>
+  </ul>
+
+  <h2>3. Estructura de Carpetas</h2>
+  <h3>Frontend</h3>
+  <pre>
+client/
+├── public/           # Archivos estáticos
+├── src/
+│   ├── components/   # Componentes reutilizables (Layout, ProtectedRoutes)
+│   ├── context/      # Estados globales (AuthContext para sesiones)
+│   ├── pages/        # Pantallas completas (Home, Login, Register, Dashboard)
+│   ├── api.ts        # Configuración centralizada de peticiones (fetch)
+│   ├── App.tsx       # Mapeo general de rutas
+│   └── index.css     # Tokens de diseño y variables globales
+  </pre>
+
+  <h3>Backend</h3>
+  <pre>
+server/
+├── src/
+│   ├── routes/       # Definición de end-points (auth, users, records, appointments)
+│   ├── store/        # Interfaz de conexión a base de datos (PostgreSQL/Supabase)
+│   ├── middleware/   # Funciones intermedias (verificación de JWT)
+│   └── index.js      # Punto de entrada principal (Express app)
+├── package.json      # Dependencias del servidor
+└── .env              # Variables de entorno (JWT_SECRET, DB_URL)
+  </pre>
+
+  <h2>4. Esquema de Base de Datos</h2>
+  <p>Principales entidades del sistema relacional:</p>
+  <ul>
+    <li><strong>USERS:</strong> Guarda la información central de autenticación y roles (Paciente, Doctor, Admin).</li>
+    <li><strong>APPOINTMENTS:</strong> Enlaza a un Paciente con un Doctor para una fecha específica.</li>
+    <li><strong>CLINICAL_RECORDS:</strong> Notas e historial de consulta agregadas por un Doctor sobre un Paciente.</li>
+    <li><strong>MESSAGES:</strong> Registro del chat entre usuarios del sistema.</li>
+  </ul>
+
+  <h2>5. Implementación de Teleconsultas (Microsoft Teams)</h2>
+  <p>La teleconsulta ha sido descentralizada en el frontend a través de <strong>Microsoft Teams</strong>.</p>
+  <ul>
+    <li>En el componente principal (Home.tsx), el botón de <strong>"Nueva Teleconsulta"</strong> genera un enlace directo al cliente web de Teams (https://teams.microsoft.com/v2/).</li>
+    <li>La plataforma no gestiona internamente la transmisión de video por WebRTC para evitar altos costos de infraestructura, delegando la responsabilidad a los canales seguros de Microsoft.</li>
+  </ul>
+
+  <h2>6. Seguridad y Buenas Prácticas</h2>
+  <ol>
+    <li><strong>Contraseñas:</strong> En ningún caso las contraseñas se almacenan en texto plano; son encriptadas con bcrypt.</li>
+    <li><strong>Autorización:</strong> Todo acceso al servidor en rutas privadas requiere un Bearer Token emitido al hacer login.</li>
+    <li><strong>Escalamiento de Privilegios:</strong> El registro público solo permite crear cuentas de Paciente. La creación de usuarios de tipo Doctor o Admin debe ser manejada exclusivamente por un Administrador desde el panel interno.</li>
+    <li><strong>Protección UI:</strong> React Router utiliza componentes de tipo Protected para interceptar visualizaciones no autorizadas.</li>
+  </ol>
+
+  <h2>7. Instrucciones de Despliegue</h2>
+  <p>Para desplegar la aplicación en producción:</p>
+  <ol>
+    <li><strong>Compilación del Frontend:</strong> <code>npm run build</code> (genera la carpeta dist/ para servidores web o CDNs como Vercel/Netlify).</li>
+    <li><strong>Inicialización del Servidor:</strong> Configurar el archivo .env con las credenciales de producción y ejecutar <code>node src/index.js</code>.</li>
+    <li><strong>Variables Críticas (.env):</strong> PORT, JWT_SECRET, DB_URL.</li>
+  </ol>
+</body>
+</html>
